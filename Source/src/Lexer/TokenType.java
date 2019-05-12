@@ -64,20 +64,30 @@ public enum TokenType {
     OP_OR      , // or
     OP_NOT     , // not
 
+    //SEP
+
+    SEP_SEMI   , // ;
+    SEP_COMMA  , // ,
+    SEP_DOT    , // .
+    SEP_COLON  , // :
+    SEP_LABEL  , // ::
+    SEP_LPAREN , // (
+    SEP_RPAREN , // )
+    SEP_LBRACK , // [
+    SEP_RBRACK , // ]
+    SEP_LCURLY , // {
+    SEP_RCURLY , // }
+
+
+    // DataStructure
+    STRING,
+    NUMBER,
+    VARARG     , // ...
+
     // 别人的 参考一下
 //    TOKEN_EOF        , // end-of-file
 //    TOKEN_VARARG     , // ...
-//    TOKEN_SEP_SEMI   , // ;
-//    TOKEN_SEP_COMMA  , // ,
-//    TOKEN_SEP_DOT    , // .
-//    TOKEN_SEP_COLON  , // :
-//    TOKEN_SEP_LABEL  , // ::
-//    TOKEN_SEP_LPAREN , // (
-//    TOKEN_SEP_RPAREN , // )
-//    TOKEN_SEP_LBRACK , // [
-//    TOKEN_SEP_RBRACK , // ]
-//    TOKEN_SEP_LCURLY , // {
-//    TOKEN_SEP_RCURLY , // }
+
 
 
 //    TOKEN_KW_BREAK   , // break
