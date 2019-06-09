@@ -6,11 +6,11 @@ package Lexer;
 public enum TokenType {
     EOF, // end of file
 
-// Keywords
-// and       break     do        else      elseif
-// end       false     for       function  if
-// in        local     nil       not       or
-// repeat    return    then      true      until     while
+    // Keywords
+    // and       break     do        else      elseif
+    // end       false     for       function  if
+    // in        local     nil       not       or
+    // repeat    return    then      true      until     while
     KW_AND, // Operation
     KW_BREAK,
     KW_DO,
@@ -33,15 +33,15 @@ public enum TokenType {
     KW_UNTIL,
     KW_WHILE,
 
-// Operation
+    // Operation
 //    +     -     *     /     %     ^     #
-//    ==    ~=    <=    >=    <     >     =
-//    (     )     {     }     [     ]
+//                 ==    ~=    <=    >=    <     >     =
+//            (     )     {     }     [     ]
 //    ;     :     ,     .     ..    ...
 
     OP_ASSIGN  , // =
-    OP_MINUS   , // -
-    OP_WAVE    , // ~
+    OP_MINUS   , // - (sub or unm)
+    OP_WAVE    , // ~ (bnot or bxor)
     OP_ADD     , // +
     OP_MUL     , // *
     OP_DIV     , // /
@@ -68,7 +68,7 @@ public enum TokenType {
     OP_BNOT    , // = TOKEN_OP_WAVE
     OP_BXOR    , // = TOKEN_OP_WAVE
 
-//SEP
+    //SEP
     SEP_SEMI   , // ;
     SEP_COMMA  , // ,
     SEP_DOT    , // .
@@ -82,9 +82,9 @@ public enum TokenType {
     SEP_RCURLY , // }
 
 
-// DataStructure
+    // DataStructure
     STRING,
     NUMBER,
-    VARARG,
-    IDENTIFIER, // Label Var_name
+    VARARG     , // ...
+    IDENTIFIER, // Label
 }

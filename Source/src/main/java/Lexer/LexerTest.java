@@ -35,7 +35,8 @@ public class LexerTest {
         Lexer lexer = new Lexer(code);
         for (;;){
             Token token = lexer.getNextToken();
-            System.out.printf("[%-10s] %s\n", kindName(token.type), token.source);
+            System.out.printf("[%2d] [%-10s] %s\n",
+                    lexer.getCurLine(), kindName(token.type), token.source);
             if (token.type == TokenType.EOF) {
                 break;
             }

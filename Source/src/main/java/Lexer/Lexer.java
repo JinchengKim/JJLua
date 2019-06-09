@@ -11,7 +11,11 @@ import static Lexer.TokenType.KW_RETURN;
 
 public class Lexer {
     public CodeSeq chunk;
+    private int curLine = 1;
+
     private Token cacheToken;
+    private int cacheLine;
+
     HashMap<String, TokenType > keyWordMap = new HashMap<String, TokenType>(){{
         put("and",TokenType.KW_AND);
         put("break",TokenType.KW_BREAK);
@@ -50,137 +54,140 @@ public class Lexer {
         // skip blank
         while (chunk.length() > 0){
             if (chunk.startWith("--")){
+                // commment
                 // TODO
             }else if(chunk.startWith("\n\r") || chunk.startWith("\r\n")){
                 chunk.next(2);
+                curLine +=1;
             }else if(chunk.isWhiteSpace()){
                 chunk.next(1);
             }else if(chunk.isNewLine()) {
                 chunk.next(1);
+                curLine += 1;
             }else {
                 break;
             }
         }
 
         if (chunk.length() <= 0){
-            return new Token(TokenType.EOF, "");
+            return new Token(curLine, TokenType.EOF, "");
         }
         switch (chunk.charAt(0)){
-            case '(': chunk.next(1); return new Token( TokenType.SEP_LPAREN, "(");
-            case ')': chunk.next(1); return new Token( TokenType.SEP_RPAREN, ")");
-            case ']': chunk.next(1); return new Token( TokenType.SEP_RBRACK, "]");
-            case '{': chunk.next(1); return new Token( TokenType.SEP_LCURLY, "{");
-            case '}': chunk.next(1); return new Token( TokenType.SEP_RCURLY, "}");
-            case '#': chunk.next(1); return new Token( TokenType.OP_LEN,     "#");
-            case '+': chunk.next(1); return new Token( TokenType.OP_ADD,     "+");
-            case '-': chunk.next(1); return new Token( TokenType.OP_MINUS,   "-");
-            case '*': chunk.next(1); return new Token( TokenType.OP_MUL,     "*");
-            case '^': chunk.next(1); return new Token( TokenType.OP_POW,     "^");
-            case '%': chunk.next(1); return new Token( TokenType.OP_MOD,     "%");
-            case '&': chunk.next(1); return new Token( TokenType.OP_BAND,    "&");
-            case '|': chunk.next(1); return new Token( TokenType.OP_BOR,     "|");
-            case ';': chunk.next(1); return new Token( TokenType.SEP_SEMI,   ";");
-            case ',': chunk.next(1); return new Token( TokenType.SEP_COMMA,  ",");
+            case '(': chunk.next(1); return new Token(curLine, TokenType.SEP_LPAREN, "(");
+            case ')': chunk.next(1); return new Token(curLine, TokenType.SEP_RPAREN, ")");
+            case ']': chunk.next(1); return new Token(curLine, TokenType.SEP_RBRACK, "]");
+            case '{': chunk.next(1); return new Token(curLine, TokenType.SEP_LCURLY, "{");
+            case '}': chunk.next(1); return new Token(curLine, TokenType.SEP_RCURLY, "}");
+            case '#': chunk.next(1); return new Token(curLine, TokenType.OP_LEN,     "#");
+            case '+': chunk.next(1); return new Token(curLine, TokenType.OP_ADD,     "+");
+            case '-': chunk.next(1); return new Token(curLine, TokenType.OP_MINUS,   "-");
+            case '*': chunk.next(1); return new Token(curLine, TokenType.OP_MUL,     "*");
+            case '^': chunk.next(1); return new Token(curLine, TokenType.OP_POW,     "^");
+            case '%': chunk.next(1); return new Token(curLine, TokenType.OP_MOD,     "%");
+            case '&': chunk.next(1); return new Token(curLine, TokenType.OP_BAND,    "&");
+            case '|': chunk.next(1); return new Token(curLine, TokenType.OP_BOR,     "|");
+            case ';': chunk.next(1); return new Token(curLine, TokenType.SEP_SEMI,   ";");
+            case ',': chunk.next(1); return new Token(curLine, TokenType.SEP_COMMA,  ",");
             case '/':{
                 if (chunk.startWith("//")){
                     chunk.next(2);
-                    return new Token( TokenType.OP_IDIV, "//");
+                    return new Token(curLine, TokenType.OP_IDIV, "//");
                 }else{
                     chunk.next(1);
-                    return new Token( TokenType.OP_DIV, "/");
+                    return new Token(curLine, TokenType.OP_DIV, "/");
                 }
             }
 
             case '=':{
                 if (chunk.startWith("==")){
                     chunk.next(2);
-                    return new Token( TokenType.OP_EQ, "==");
+                    return new Token(curLine, TokenType.OP_EQ, "==");
                 }else {
                     chunk.next();
-                    return new Token( TokenType.OP_ASSIGN, "=");
+                    return new Token(curLine, TokenType.OP_ASSIGN, "=");
                 }
             }
 
             case '>':{
                 if (chunk.startWith(">=")){
                     chunk.next(2);
-                    return new Token( TokenType.OP_GE, ">=");
+                    return new Token(curLine, TokenType.OP_GE, ">=");
                 }else {
                     chunk.next();
-                    return new Token( TokenType.OP_GT, ">");
+                    return new Token(curLine, TokenType.OP_GT, ">");
                 }
             }
 
             case '<':{
                 if (chunk.startWith("<=")){
                     chunk.next(2);
-                    return new Token( TokenType.OP_LE, "<=");
+                    return new Token(curLine, TokenType.OP_LE, "<=");
                 }else {
                     chunk.next();
-                    return new Token( TokenType.OP_LT, "<");
+                    return new Token(curLine, TokenType.OP_LT, "<");
                 }
             }
 
             case ':':{
                 if (chunk.startWith("::")){
                     chunk.next(2);
-                    return new Token( TokenType.SEP_LABEL, "::");
+                    return new Token(curLine, TokenType.SEP_LABEL, "::");
                 }else{
                     chunk.next(1);
-                    return new Token( TokenType.SEP_COLON, ":");
+                    return new Token(curLine, TokenType.SEP_COLON, ":");
                 }
             }
 
             case '~':{
                 if (chunk.startWith("~=")){
                     chunk.next(2);
-                    return new Token( TokenType.OP_NE, "~=");
+                    return new Token(curLine, TokenType.OP_NE, "~=");
                 }else {
                     chunk.next();
-                    return new Token( TokenType.OP_WAVE, "~");
+                    return new Token(curLine, TokenType.OP_WAVE, "~");
                 }
             }
 
             case '[':{
                 if (chunk.startWith("[[") || chunk.startWith("[=")){
-                    return new Token( TokenType.STRING, parseLongStr());
+                    return new Token(curLine, TokenType.STRING, parseLongStr());
                 }else {
                     chunk.next();
-                    return new Token( TokenType.SEP_LBRACK, "[");
+                    return new Token(curLine, TokenType.SEP_LBRACK, "[");
                 }
             }
             case '.':{
                 if (chunk.startWith("...")){
                     chunk.next(3);
-                    return new Token( TokenType.VARARG, "...");
+                    return new Token(curLine, TokenType.VARARG, "...");
                 }else if(chunk.startWith("..")){
                     chunk.next(2);
-                    return new Token( TokenType.OP_CONCAT, "..");
+                    return new Token(curLine, TokenType.OP_CONCAT, "..");
                 }else if (chunk.length() == 1 || !chunk.isDigit(1) ){
                     chunk.next();
-                    return new Token( TokenType.SEP_DOT, ".");
+                    return new Token(curLine, TokenType.SEP_DOT, ".");
                 }
             }
 
             case '\'':
             case '"':{
-                return new Token( TokenType.STRING, parseShortStr());
+                return new Token(curLine, TokenType.STRING, parseShortStr());
             }
         }
         char c = chunk.charAt(0);
         if (c == '.' || chunk.isDigit(0)){
-            return new Token( TokenType.NUMBER, parseNumber());
+            return new Token(curLine, TokenType.NUMBER, parseNumber());
         }
         if (c == '_' || chunk.isLetter(0)){
             String str = parse(Pattern.compile("^[_\\d\\w]+"));
             if (this.keyWordMap.containsKey(str)){
-                return new Token( this.keyWordMap.get(str), str);
+                return new Token(curLine, this.keyWordMap.get(str), str);
             }else {
-                return new Token( TokenType.IDENTIFIER, str);
+                return new Token(curLine, TokenType.IDENTIFIER, str);
             }
         }
 
-        throw new LexerException("unexpected symbol" );
+        throw new LexerException("unexpected symbol near at line" + curLine);
     }
 
     public String parseNumber() throws LexerException {
@@ -190,7 +197,7 @@ public class Lexer {
     public String parseLongStr() throws LexerException {
         String openLongStr = chunk.matchStr(Pattern.compile("^\\[=*\\["));
         if (openLongStr == null){
-            throw new LexerException("match long string error");
+            throw new LexerException("match long string error at line " + curLine);
         }
         String closeLongStr = openLongStr.replace("[","]");
         int strIdx = chunk.indexOf(closeLongStr);
@@ -209,12 +216,13 @@ public class Lexer {
             chunk.next(str.length());
             str = str.substring(1, str.length() - 1);
             if (str.indexOf('\\') >= 0){
+                curLine += Pattern.compile("\r\n|\n\r|\n|\r").split(str).length - 1;
                 // TODO
             }
 
             return str;
         }
-        throw new LexerException("parseShortStr error");
+        throw new LexerException("parseShortStr error at line " + curLine);
     }
 
     public String parse(Pattern pattern) throws LexerException {
@@ -237,6 +245,7 @@ public class Lexer {
 
     public TokenType getTopTokenType(){
         if (cacheToken == null){
+            cacheLine = curLine;
             try {
                 cacheToken = getNextToken();
             } catch (LexerException e) {
@@ -244,6 +253,10 @@ public class Lexer {
             }
         }
         return cacheToken.type;
+    }
+
+    public int getCurLine(){
+        return curLine;
     }
 
     public Token getValidNextToken(TokenType type) throws Exception{

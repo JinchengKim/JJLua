@@ -1,7 +1,5 @@
 package Lexer;
 
-import Util.LuaStringUtil;
-
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -15,15 +13,19 @@ public class CodeSeq implements CharSequence{
     CodeSeq(String code){
         this.code = code;
     }
+
     public void next(int count){
         offset+=count;
     }
     public void next(){
         offset+=1;
     }
+
     public boolean startWith(String prefix){
         return code.startsWith(prefix, offset);
     }
+
+
     public int indexOf(String str){
         return code.indexOf(str, offset) - offset;
     }
@@ -32,11 +34,32 @@ public class CodeSeq implements CharSequence{
         return matcher.find() ? matcher.group(0) : null;
     }
 
-    public boolean isWhiteSpace(){char c = this.getChar(0);return LuaStringUtil.isWhiteSpace(c);}
-    public boolean isNewLine(){return LuaStringUtil.isNewLine(this.getChar(0));}
-    public char getChar(int idx){return code.charAt(idx+offset);}
-    public boolean isDigit(int idx){char c = getChar(idx);return LuaStringUtil.isDigit(c);}
-    public boolean isLetter(int idx){char c = getChar(idx); return LuaStringUtil.isLetter(c);}
+    public boolean isWhiteSpace(){
+        char c = this.getChar(0);
+        if (c == '\t' || c == '\n' || c == '\f' || c == ' ') return true;
+        return false;
+    }
+
+    public boolean isNewLine(){
+        return this.getChar(0) == '\r' || this.getChar(0) == '\n';
+    }
+
+    public char getChar(int idx){
+        return code.charAt(idx+offset);
+    }
+    public boolean isDigit(int idx){
+        char c = getChar(idx);
+        if (c >= '0' && c <= '9') return true;
+        return false;
+    }
+
+    public boolean isLetter(int idx){
+        char c = getChar(idx);
+        if (c >= 'a' && c <= 'z') return true;
+        if (c >= 'A' && c <= 'Z') return true;
+        return false;
+    }
+
     public String subString(int bidx, int eidx){
         return code.substring(bidx+offset, eidx+offset);
     }
