@@ -7,13 +7,19 @@ import Operation.OprEnum;
 import static State.LState.LUA_REGISTRYINDEX;
 
 public class InstrImpl{
+    /* number of list items to accumulate before a SETLIST instruction */
     public static final int LFIELDS_PER_FLUSH = 50;
+
+    /* misc */
+
+    // R(A) := R(B)
     public static void move(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i) + 1;
         vm.copy(b, a);
     }
 
+    // pc+=sBx; if (A) close all upvalues >= R(A - 1)
     public static void jmp(int i, LState vm) {
         int a = Instr.getA(i);
         int sBx = Instr.getSBx(i);
@@ -23,7 +29,9 @@ public class InstrImpl{
         }
     }
 
-    // load
+    /* load */
+
+    // R(A), R(A+1), ..., R(A+B) := nil
     public static void loadNil(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i);
@@ -33,6 +41,8 @@ public class InstrImpl{
         }
         vm.pop(1);
     }
+
+    // R(A) := (bool)B; if (C) pc++
     public static void loadBool(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i);
@@ -43,6 +53,8 @@ public class InstrImpl{
             vm.addPC(1);
         }
     }
+
+    // R(A) := Kst(Bx)
     public static void loadK(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int bx = Instr.getBx(i);
@@ -50,6 +62,7 @@ public class InstrImpl{
         vm.replace(a);
     }
 
+    // R(A) := Kst(extra arg)
     public static void loadKx(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int ax = Instr.getAx(vm.fetch());
@@ -57,7 +70,8 @@ public class InstrImpl{
         vm.replace(a);
     }
 
-    // arith
+    /* arith */
+
     public static void add (int i, LState vm) { binaryArith(i, vm, ArithEnum.OP_ADD ); } // +
     public static void sub (int i, LState vm) { binaryArith(i, vm, ArithEnum.OP_SUB ); } // -
     public static void mul (int i, LState vm) { binaryArith(i, vm, ArithEnum.OP_MUL ); } // *
@@ -73,6 +87,7 @@ public class InstrImpl{
     public static void unm (int i, LState vm) { unaryArith( i, vm, ArithEnum.OP_UMN ); } // -
     public static void bnot(int i, LState vm) { unaryArith( i, vm, ArithEnum.OP_BNOT); } // ~
 
+    // R(A) := RK(B) op RK(C)
     private static void binaryArith(int i, LState vm, ArithEnum op) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i);
@@ -83,6 +98,7 @@ public class InstrImpl{
         vm.replace(a);
     }
 
+    // R(A) := op R(B)
     private static void unaryArith(int i, LState vm, ArithEnum op) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i) + 1;
@@ -91,11 +107,13 @@ public class InstrImpl{
         vm.replace(a);
     }
 
-    // bool
+    /* compare */
+
     public static void eq(int i, LState vm) { compare(i, vm, OprEnum.EQ); } // ==
     public static void lt(int i, LState vm) { compare(i, vm, OprEnum.LT); } // <
     public static void le(int i, LState vm) { compare(i, vm, OprEnum.LE); } // <=
 
+    // if ((RK(B) op RK(C)) ~= A) then pc++
     private static void compare(int i, LState vm, OprEnum op) {
         int a = Instr.getA(i);
         int b = Instr.getB(i);
@@ -108,7 +126,9 @@ public class InstrImpl{
         vm.pop(2);
     }
 
-    // logical
+    /* logical */
+
+    // R(A) := not R(B)
     public static void not(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i) + 1;
@@ -116,6 +136,7 @@ public class InstrImpl{
         vm.replace(a);
     }
 
+    // if not (R(A) <=> C) then pc++
     public static void test(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int c = Instr.getC(i);
@@ -124,6 +145,7 @@ public class InstrImpl{
         }
     }
 
+    // if (R(B) <=> C) then R(A) := R(B) else pc++
     public static void testSet(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i) + 1;
@@ -135,6 +157,9 @@ public class InstrImpl{
         }
     }
 
+    /* len & concat */
+
+    // R(A) := length of R(B)
     public static void length(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i) + 1;
@@ -142,6 +167,7 @@ public class InstrImpl{
         vm.replace(a);
     }
 
+    // R(A) := R(B).. ... ..R(C)
     public static void concat(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i) + 1;
@@ -155,7 +181,9 @@ public class InstrImpl{
         vm.replace(a);
     }
 
-    // for loop
+    /* for */
+
+    // R(A)-=R(A+2); pc+=sBx
     public static void forPrep(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int sBx = Instr.getSBx(i);
@@ -180,10 +208,15 @@ public class InstrImpl{
         vm.addPC(sBx);
     }
 
+    // R(A)+=R(A+2);
+    // if R(A) <?= R(A+1) then {
+    //   pc+=sBx; R(A+3)=R(A)
+    // }
     public static void forLoop(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int sBx = Instr.getSBx(i);
 
+        // R(A)+=R(A+2);
         vm.pushValue(a + 2);
         vm.pushValue(a);
         vm.arith(ArithEnum.OP_ADD);
@@ -192,11 +225,13 @@ public class InstrImpl{
         boolean isPositiveStep = vm.toNumber(a+2) >= 0;
         if (isPositiveStep && vm.compare(a, a+1, OprEnum.LT) ||
                 !isPositiveStep && vm.compare(a+1, a, OprEnum.LE)) {
+            // pc+=sBx; R(A+3)=R(A)
             vm.addPC(sBx);
             vm.copy(a, a+3);
         }
     }
 
+    // R(A+3), ... ,R(A+2+C) := R(A)(R(A+1), R(A+2));
     public static void tForCall(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int c = Instr.getC(i);
@@ -205,6 +240,9 @@ public class InstrImpl{
         popResults(a+3, c+1, vm);
     }
 
+    // if R(A+1) ~= nil then {
+    //   R(A)=R(A+1); pc += sBx
+    // }
     public static void tForLoop(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int sBx = Instr.getSBx(i);
@@ -214,16 +252,19 @@ public class InstrImpl{
         }
     }
 
-    // table
+    /* table */
+
+    // R(A) := {} (size = B,C)
     public static void newTable(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i);
         int c = Instr.getC(i);
 
-        vm.createTable(b, c);
+        vm.createTable(LuaCompiler.Processor.float2int(b), LuaCompiler.Processor.float2int(c));
         vm.replace(a);
     }
 
+    // R(A) := R(B)[RK(C)]
     public static void getTable(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i) + 1;
@@ -233,6 +274,7 @@ public class InstrImpl{
         vm.replace(a);
     }
 
+    // R(A)[RK(B)] := RK(C)
     public static void setTable(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i);
@@ -242,6 +284,7 @@ public class InstrImpl{
         vm.setTable(a);
     }
 
+    // R(A)[(C-1)*FPF+i] := R(A+i), 1 <= i <= B
     public static void setList(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i);
@@ -268,11 +311,15 @@ public class InstrImpl{
                 vm.pushValue(j);
                 vm.setI(a, idx);
             }
+
+            // clear stack
             vm.setTop(vm.registerCount());
         }
     }
 
-    // runner
+    /* call */
+
+    // R(A+1) := R(B); R(A) := R(B)[RK(C)]
     public static void self(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i) + 1;
@@ -283,6 +330,7 @@ public class InstrImpl{
         vm.replace(a);
     }
 
+    // R(A) := closureLState
     public static void closure(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int bx = Instr.getBx(i);
@@ -290,15 +338,17 @@ public class InstrImpl{
         vm.replace(a);
     }
 
+    // R(A), R(A+1), ..., R(A+B-2) = vararg
     public static void vararg(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i);
-        if (b != 1) {
+        if (b != 1) { // b==0 or b>1
             vm.loadVararg(b - 1);
             popResults(a, b, vm);
         }
     }
 
+    // return R(A)(R(A+1), ... ,R(A+B-1))
     public static void tailCall(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i);
@@ -309,6 +359,7 @@ public class InstrImpl{
         popResults(a, c, vm);
     }
 
+    // R(A), ... ,R(A+C-2) := R(A)(R(A+1), ... ,R(A+B-1))
     public static void call(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i);
@@ -318,11 +369,14 @@ public class InstrImpl{
         popResults(a, c, vm);
     }
 
+    // return R(A), ... ,R(A+B-2)
     public static void _return(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i);
         if (b == 1) {
+            // no return values
         } else if (b > 1) {
+            // b-1 return values
             vm.checkStack(b - 1);
             for (int j = a; j <= a+b-2; j++) {
                 vm.pushValue(j);
@@ -358,29 +412,35 @@ public class InstrImpl{
 
     private static void popResults(int a, int c, LState vm) {
         if (c == 1) {
+            // no results
         } else if (c > 1) {
             for (int i = a + c - 2; i >= a; i--) {
                 vm.replace(i);
             }
         } else {
+            // leave results on stack
             vm.checkStack(1);
             vm.pushInteger(a);
         }
     }
 
-    // upvalues
+    /* upvalues */
+
+    // R(A) := UpValue[B]
     public static void getUpval(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i) + 1;
         vm.copy(luaUpvalueIndex(b), a);
     }
 
+    // UpValue[B] := R(A)
     public static void setUpval(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i) + 1;
         vm.copy(a, luaUpvalueIndex(b));
     }
 
+    // R(A) := UpValue[B][RK(C)]
     public static void getTabUp(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i) + 1;
@@ -390,6 +450,7 @@ public class InstrImpl{
         vm.replace(a);
     }
 
+    // UpValue[A][RK(B)] := RK(C)
     public static void setTabUp(int i, LState vm) {
         int a = Instr.getA(i) + 1;
         int b = Instr.getB(i);
@@ -398,6 +459,7 @@ public class InstrImpl{
         vm.getRK(c);
         vm.setTable(luaUpvalueIndex(a));
     }
+
     private static int luaUpvalueIndex(int i) {
         return LUA_REGISTRYINDEX - i;
     }

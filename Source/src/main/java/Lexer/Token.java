@@ -5,9 +5,11 @@ package Lexer;
  */
 
 public class Token {
+    public int line;
     public TokenType type;
     public String source;
-    public Token(TokenType type, String source){
+    public Token(int line, TokenType type, String source){
+        this.line = line;
         this.type = type;
         this.source = source;
     }
