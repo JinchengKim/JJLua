@@ -1,10 +1,11 @@
 package State;
 
 import AST.Exception.DataStrutureException;
+import BinaryChunk.BChunk;
 import BinaryChunk.Proto;
 import BinaryChunk.UpValue;
 import LuaCompiler.LCompiler;
-import LuaCompiler.ProgramStatus;
+import LuaCompiler.ThreadStatus;
 import Operation.*;
 import com.sun.codemodel.internal.JBlock;
 
@@ -39,7 +40,8 @@ public class LStateInstance implements LState{
     }
 
 
-    // metatable
+    /* metatable */
+
     private LTable getMetatable(Object val) {
         if (val instanceof LTable) {
             return ((LTable) val);
@@ -82,6 +84,7 @@ public class LStateInstance implements LState{
     }
 
     public Object callMetamethod(Object a, Object b, Object mm) {
+        //stack.check(4)
         stack.push(mm);
         stack.push(a);
         stack.push(b);
@@ -89,9 +92,16 @@ public class LStateInstance implements LState{
         return stack.pop();
     }
 
+    /* basic stack manipulation */
+
     @Override
     public int getTop() {
         return stack.top();
+    }
+
+    @Override
+    public int absIndex(int idx) {
+        return stack.absIndex(idx);
     }
 
     @Override
@@ -127,13 +137,20 @@ public class LStateInstance implements LState{
     }
 
     @Override
+    public void remove(int idx) {
+        rotate(idx, -1);
+        pop(1);
+    }
+
+    @Override
     public void rotate(int idx, int n) {
-        int t = stack.top() - 1;
-        int p = stack.absIndex(idx) - 1;
-        int m = n >= 0 ? t - n : p - n - 1;
-        stack.reverse(p, m);
-        stack.reverse(m + 1, t);
-        stack.reverse(p, t);
+        int t = stack.top() - 1;            /* end of stack segment being rotated */
+        int p = stack.absIndex(idx) - 1;    /* start of segment */
+        int m = n >= 0 ? t - n : p - n - 1; /* end of prefix */
+
+        stack.reverse(p, m);     /* reverse the prefix with length 'n' */
+        stack.reverse(m + 1, t); /* reverse the suffix */
+        stack.reverse(p, t);     /* reverse the entire segment */
     }
 
     @Override
@@ -155,6 +172,8 @@ public class LStateInstance implements LState{
         }
     }
 
+    /* access functions (stack -> Go); */
+
     @Override
     public String typeName(LDataStructure ds) {
         switch (ds) {
@@ -165,6 +184,7 @@ public class LStateInstance implements LState{
             case STRING:   return "string";
             case TABLE:    return "table";
             case FUNCTION: return "function";
+//            case TH:   return "thread";
             default:            return "userdata";
         }
     }
@@ -180,8 +200,19 @@ public class LStateInstance implements LState{
     }
 
     @Override
+    public boolean isNone(int idx) {
+        return type(idx) == LDataStructure.NULL;
+    }
+
+    @Override
     public boolean isNil(int idx) {
         return type(idx) == LDataStructure.NIL;
+    }
+
+    @Override
+    public boolean isNoneOrNil(int idx) {
+        LDataStructure t = type(idx);
+        return t == LDataStructure.NULL || t == LDataStructure.NIL;
     }
 
     @Override
@@ -190,9 +221,36 @@ public class LStateInstance implements LState{
     }
 
     @Override
+    public boolean isInteger(int idx) {
+        return stack.get(idx) instanceof Long;
+    }
+
+    @Override
+    public boolean isNumber(int idx) {
+        return toNumberX(idx) != null;
+    }
+
+    @Override
     public boolean isString(int idx) {
         LDataStructure t = type(idx);
         return t == LDataStructure.STRING || t == LDataStructure.NUMBER;
+    }
+
+    @Override
+    public boolean isTable(int idx) {
+        return type(idx) == LDataStructure.TABLE;
+    }
+
+    @Override
+    public boolean isFunction(int idx) {
+        return type(idx) == LDataStructure.FUNCTION;
+    }
+
+    @Override
+    public boolean isJavaFunction(int idx) {
+        Object val = stack.get(idx);
+        return val instanceof LBlock
+                && ((LBlock) val).javaFunc != null;
     }
 
     @Override
@@ -243,6 +301,28 @@ public class LStateInstance implements LState{
     }
 
     @Override
+    public JFunc toJavaFunction(int idx) {
+        Object val = stack.get(idx);
+        return val instanceof LBlock
+                ? ((LBlock) val).javaFunc
+                : null;
+    }
+
+    @Override
+    public int rawLen(int idx) {
+        Object val = stack.get(idx);
+        if (val instanceof String) {
+            return ((String) val).length();
+        } else if (val instanceof LTable) {
+            return ((LTable) val).length();
+        } else {
+            return 0;
+        }
+    }
+
+    /* push functions (Go -> stack); */
+
+    @Override
     public void pushNil() {
         stack.push(null);
     }
@@ -273,6 +353,23 @@ public class LStateInstance implements LState{
     }
 
     @Override
+    public void pushJavaClosure(JFunc f, int n) {
+        LBlock closure = new LBlock(f, n);
+        for (int i = n; i > 0; i--) {
+            Object val = stack.pop();
+            closure.upvals[i-1] = new UpValueContainer(val); // TODO
+        }
+        stack.push(closure);
+    }
+
+    @Override
+    public void pushGlobalTable() {
+        stack.push(registry.get(LUA_RIDX_GLOBALS));
+    }
+
+    /* comparison and arithmetic functions */
+
+    @Override
     public void arith(ArithEnum op) {
         Object b = stack.pop();
         Object a = op != ArithEnum.OP_UMN && op != ArithEnum.OP_BNOT ? stack.pop() : b;
@@ -298,6 +395,24 @@ public class LStateInstance implements LState{
     }
 
     @Override
+    public boolean rawEqual(int idx1, int idx2) {
+        if (!stack.isValid(idx1) || !stack.isValid(idx2)) {
+            return false;
+        }
+
+        Object a = stack.get(idx1);
+        Object b = stack.get(idx2);
+        return BBool.eq(a, b, null);
+    }
+
+    /* get functions (Lua -> stack) */
+
+    @Override
+    public void newTable() {
+        createTable(0, 0);
+    }
+
+    @Override
     public void createTable(int nArr, int nRec) {
         stack.push(new LTable(nArr, nRec));
     }
@@ -310,11 +425,35 @@ public class LStateInstance implements LState{
     }
 
     @Override
+    public LDataStructure getField(int idx, String k) {
+        Object t = stack.get(idx);
+        return getTable(t, k, false);
+    }
+
+    @Override
     public LDataStructure getI(int idx, long i) {
         Object t = stack.get(idx);
         return getTable(t, i, false);
     }
 
+    @Override
+    public LDataStructure rawGet(int idx) {
+        Object t = stack.get(idx);
+        Object k = stack.pop();
+        return getTable(t, k, true);
+    }
+
+    @Override
+    public LDataStructure rawGetI(int idx, long i) {
+        Object t = stack.get(idx);
+        return getTable(t, i, true);
+    }
+
+    @Override
+    public LDataStructure getGlobal(String name) {
+        Object t = registry.get(LUA_RIDX_GLOBALS);
+        return getTable(t, name, false);
+    }
 
     @Override
     public boolean getMetatable(int idx) {
@@ -360,6 +499,8 @@ public class LStateInstance implements LState{
         throw new RuntimeException("not a table!"); // todo
     }
 
+    /* set functions (stack -> Lua) */
+
     @Override
     public void setTable(int idx) {
         Object t = stack.get(idx);
@@ -369,10 +510,32 @@ public class LStateInstance implements LState{
     }
 
     @Override
+    public void setField(int idx, String k) {
+        Object t = stack.get(idx);
+        Object v = stack.pop();
+        setTable(t, k, v, false);
+    }
+
+    @Override
     public void setI(int idx, long i) {
         Object t = stack.get(idx);
         Object v = stack.pop();
         setTable(t, i, v, false);
+    }
+
+    @Override
+    public void rawSet(int idx) {
+        Object t = stack.get(idx);
+        Object v = stack.pop();
+        Object k = stack.pop();
+        setTable(t, k, v, true);
+    }
+
+    @Override
+    public void rawSetI(int idx, long i) {
+        Object t = stack.get(idx);
+        Object v = stack.pop();
+        setTable(t, i, v, true);
     }
 
     @Override
@@ -389,23 +552,25 @@ public class LStateInstance implements LState{
     }
 
     @Override
-    public ProgramStatus load(byte[] chunk, String chunkName, String mode) {
-        Proto proto = LCompiler.compile(new String(chunk));
+    public ThreadStatus load(byte[] chunk, String chunkName, String mode) {
+        Proto proto = BChunk.isBinaryChunk(chunk)
+                ? BChunk.undump(chunk)
+                : LCompiler.compile(new String(chunk));
         LBlock closure = new LBlock(proto);
         stack.push(closure);
         if (proto.upvalues.length > 0) {
             Object env = registry.get(LUA_RIDX_GLOBALS);
             closure.upvals[0] = new UpValueContainer(env); // todo
         }
-        return ProgramStatus.OK;
+        return ThreadStatus.OK;
     }
 
     @Override
-    public ProgramStatus pCall(int nArgs, int nResults, int msgh) {
+    public ThreadStatus pCall(int nArgs, int nResults, int msgh) {
         LStack caller = stack;
         try {
             call(nArgs, nResults);
-            return ProgramStatus.OK;
+            return ThreadStatus.OK;
         } catch (Exception e) {
             if (msgh != 0) {
                 throw e;
@@ -414,7 +579,7 @@ public class LStateInstance implements LState{
                 popLuaStack();
             }
             stack.push(e.getMessage()); // TODO
-            return ProgramStatus.ERRRUN;
+            return ThreadStatus.ERRRUN;
         }
     }
 
@@ -460,6 +625,22 @@ public class LStateInstance implements LState{
         throw new RuntimeException("not a table!");
     }
 
+    /* 'load' and 'call' functions */
+
+//    @Override
+//    public ThreadStatus load(byte[] chunk, String chunkName, String mode) {
+//        Prototype proto = BinaryChunk.isBinaryChunk(chunk)
+//                ? BinaryChunk.undump(chunk)
+//                : LuaCompiler.compile(new String(chunk), chunkName);
+//        Closure closure = new Closure(proto);
+//        stack.push(closure);
+//        if (proto.getUpvalues().length > 0) {
+//            Object env = registry.get(LUA_RIDX_GLOBALS);
+//            closure.upvals[0] = new UpvalueHolder(env); // todo
+//        }
+//        return LUA_OK;
+//    }
+
     @Override
     public void call(int nArgs, int nResults) {
         Object val = stack.get(-(nArgs + 1));
@@ -488,21 +669,26 @@ public class LStateInstance implements LState{
     }
 
     private void callJavaClosure(int nArgs, int nResults, LBlock c) {
+        // create new lua stack
         LStack newStack = new LStack(/*nRegs+LUA_MINSTACK*/);
         newStack.state = this;
         newStack.closure = c;
 
+        // pass args, pop func
         if (nArgs > 0) {
             newStack.pushN(stack.popN(nArgs), nArgs);
         }
         stack.pop();
 
+        // run closure
         pushLuaStack(newStack);
         int r = c.javaFunc.invoke(this);
         popLuaStack();
 
+        // return results
         if (nResults != 0) {
             List<Object> results = newStack.popN(r);
+            //stack.check(results.size())
             stack.pushN(results, nResults);
         }
     }
@@ -512,36 +698,45 @@ public class LStateInstance implements LState{
         int nParams = c.proto.numParams;
         boolean isVararg = c.proto.isVararg == 1;
 
+        // create new lua stack
         LStack newStack = new LStack(/*nRegs+LUA_MINSTACK*/);
         newStack.closure = c;
 
+        // pass args, pop func
         List<Object> funcAndArgs = stack.popN(nArgs + 1);
         newStack.pushN(funcAndArgs.subList(1, funcAndArgs.size()), nParams);
         if (nArgs > nParams && isVararg) {
             newStack.varargs = funcAndArgs.subList(nParams + 1, funcAndArgs.size());
         }
 
+        // run closure
         pushLuaStack(newStack);
         setTop(nRegs);
         runLuaClosure();
         popLuaStack();
 
+        // return results
         if (nResults != 0) {
             List<Object> results = newStack.popN(newStack.top() - nRegs);
+            //stack.check(results.size())
             stack.pushN(results, nResults);
         }
     }
 
     private void runLuaClosure() {
         for (;;) {
+
             int i = fetch();
             OprEnum opCode = Instr.getOpCode(i);
+//            System.out.println(opCode + " " + this.stack.pc);
             opCode.getAction().execute(i, this);
             if (opCode == OprEnum.RETURN) {
                 break;
             }
         }
     }
+
+    /* miscellaneous functions */
 
     @Override
     public void len(int idx) {
@@ -587,6 +782,7 @@ public class LStateInstance implements LState{
                 throw new RuntimeException("concatenation error!");
             }
         }
+        // n == 1, do nothing
     }
 
     @Override
@@ -612,7 +808,8 @@ public class LStateInstance implements LState{
         throw new RuntimeException(err.toString()); // TODO
     }
 
-    // LuaVM
+    /* LuaVM */
+
     @Override
     public void addPC(int n) {
         stack.pc += n;
@@ -630,7 +827,7 @@ public class LStateInstance implements LState{
 
     @Override
     public void getRK(int rk) {
-        if (rk > 0xFF) {
+        if (rk > 0xFF) { // constant
             getConst(rk & 0xFF);
         } else { // register
             pushValue(rk + 1);
@@ -650,6 +847,7 @@ public class LStateInstance implements LState{
             n = varargs.size();
         }
 
+        //stack.check(n)
         stack.pushN(varargs, n);
     }
 
@@ -689,5 +887,4 @@ public class LStateInstance implements LState{
             }
         }
     }
-
 }
